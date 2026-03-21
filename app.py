@@ -1,33 +1,61 @@
-from flask import Flask, render_template, request, jsonify, session, redirect, url_for
-import json, os, datetime, hashlib
+from flask import Flask, render_template, request, jsonify, session, redirect, Response
+import datetime, hashlib, sqlite3, os, io, csv
 
 app = Flask(__name__)
 app.secret_key = "spendsmart_secret_2024"
 
-USERS_FILE    = "users.json"
-EXPENSES_FILE = "expenses.json"
+DB_FILE = "spendsmart.db"
 
-# ─── File Helpers ────────────────────────────────────────
+# ─── Database Setup ──────────────────────────────────────
 
-def load_users():
-    if os.path.exists(USERS_FILE):
-        with open(USERS_FILE, "r") as f:
-            return json.load(f)
-    return {}
+def get_db():
+    conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row   # lets us access columns by name
+    return conn
 
-def save_users(data):
-    with open(USERS_FILE, "w") as f:
-        json.dump(data, f, indent=2)
+def init_db():
+    conn = get_db()
+    c = conn.cursor()
+    c.executescript("""
+        CREATE TABLE IF NOT EXISTS users (
+            username TEXT PRIMARY KEY,
+            name     TEXT NOT NULL,
+            password TEXT NOT NULL,
+            created  TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS expenses (
+            id          TEXT PRIMARY KEY,
+            username    TEXT NOT NULL,
+            description TEXT NOT NULL,
+            amount      REAL NOT NULL,
+            category    TEXT NOT NULL,
+            date        TEXT NOT NULL,
+            year        INTEGER NOT NULL,
+            month       INTEGER NOT NULL,
+            FOREIGN KEY(username) REFERENCES users(username)
+        );
+        CREATE TABLE IF NOT EXISTS budgets (
+            username TEXT NOT NULL,
+            year     INTEGER NOT NULL,
+            month    INTEGER NOT NULL,
+            amount   REAL NOT NULL,
+            PRIMARY KEY(username, year, month)
+        );
+        CREATE TABLE IF NOT EXISTS goals (
+            id       TEXT PRIMARY KEY,
+            username TEXT NOT NULL,
+            label    TEXT NOT NULL,
+            amount   REAL NOT NULL,
+            year     INTEGER NOT NULL,
+            month    INTEGER NOT NULL,
+            done     INTEGER DEFAULT 0,
+            FOREIGN KEY(username) REFERENCES users(username)
+        );
+    """)
+    conn.commit()
+    conn.close()
 
-def load_expenses():
-    if os.path.exists(EXPENSES_FILE):
-        with open(EXPENSES_FILE, "r") as f:
-            return json.load(f)
-    return {}
-
-def save_expenses(data):
-    with open(EXPENSES_FILE, "w") as f:
-        json.dump(data, f, indent=2)
+init_db()
 
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
@@ -36,11 +64,8 @@ def hash_password(password):
 
 @app.route("/")
 def index():
-    print(">>> Checking session:", session)           # debug line
     if "username" not in session:
-        print(">>> No user in session, redirecting to login")
         return redirect("/login")
-    print(">>> User logged in:", session["username"])
     return render_template("index.html")
 
 @app.route("/login")
@@ -65,17 +90,18 @@ def register():
     if len(password) < 4:
         return jsonify({"error": "Password must be at least 4 characters"}), 400
 
-    users = load_users()
-    if username in users:
+    conn = get_db()
+    try:
+        conn.execute(
+            "INSERT INTO users (username, name, password, created) VALUES (?,?,?,?)",
+            (username, name, hash_password(password), datetime.date.today().isoformat())
+        )
+        conn.commit()
+    except sqlite3.IntegrityError:
         return jsonify({"error": "Username already taken"}), 409
+    finally:
+        conn.close()
 
-    users[username] = {
-        "name":     name,
-        "username": username,
-        "password": hash_password(password),
-        "created":  datetime.date.today().isoformat()
-    }
-    save_users(users)
     session["username"] = username
     session["name"]     = name
     session.permanent   = True
@@ -87,8 +113,10 @@ def login():
     username = body.get("username", "").strip().lower()
     password = body.get("password", "")
 
-    users = load_users()
-    user  = users.get(username)
+    conn = get_db()
+    user = conn.execute("SELECT * FROM users WHERE username=?", (username,)).fetchone()
+    conn.close()
+
     if not user or user["password"] != hash_password(password):
         return jsonify({"error": "Invalid username or password"}), 401
 
@@ -106,9 +134,10 @@ def logout():
 def me():
     if "username" not in session:
         return jsonify({"error": "Not logged in"}), 401
-    users = load_users()
-    user  = users.get(session["username"], {})
-    return jsonify({"username": session["username"], "name": user.get("name", "")})
+    conn = get_db()
+    user = conn.execute("SELECT name FROM users WHERE username=?", (session["username"],)).fetchone()
+    conn.close()
+    return jsonify({"username": session["username"], "name": user["name"] if user else ""})
 
 # ─── Expense API ─────────────────────────────────────────
 
@@ -117,110 +146,123 @@ def expenses():
     if "username" not in session:
         return jsonify({"error": "Not logged in"}), 401
 
-    user     = session["username"]
-    all_data = load_expenses()
-    udata    = all_data.get(user, {"expenses": [], "budgets": {}})
+    user = session["username"]
+    conn = get_db()
 
     if request.method == "GET":
         year  = request.args.get("year")
         month = request.args.get("month")
-        result = udata["expenses"]
         if year and month:
-            result = [e for e in result
-                      if e["year"] == int(year) and e["month"] == int(month)]
-        return jsonify(result)
+            rows = conn.execute(
+                "SELECT * FROM expenses WHERE username=? AND year=? AND month=? ORDER BY date DESC",
+                (user, int(year), int(month))
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM expenses WHERE username=? ORDER BY date DESC", (user,)
+            ).fetchall()
+        conn.close()
+        return jsonify([dict(r) for r in rows])
 
     body = request.get_json()
     if not body or not body.get("description") or not body.get("amount"):
         return jsonify({"error": "Missing fields"}), 400
 
     today   = datetime.date.today()
-    expense = {
-        "id":          str(int(datetime.datetime.now().timestamp() * 1000)),
-        "description": body["description"].strip(),
-        "amount":      float(body["amount"]),
-        "category":    body.get("category", "Other"),
-        "date":        body.get("date", today.isoformat()),
-        "year":        int(body.get("year",  today.year)),
-        "month":       int(body.get("month", today.month)),
-    }
-    udata["expenses"].append(expense)
-    all_data[user] = udata
-    save_expenses(all_data)
-    return jsonify(expense), 201
+    exp_id  = str(int(datetime.datetime.now().timestamp() * 1000))
+    conn.execute(
+        "INSERT INTO expenses (id,username,description,amount,category,date,year,month) VALUES (?,?,?,?,?,?,?,?)",
+        (exp_id, user, body["description"].strip(), float(body["amount"]),
+         body.get("category","Other"), body.get("date", today.isoformat()),
+         int(body.get("year", today.year)), int(body.get("month", today.month)))
+    )
+    conn.commit()
+    row = conn.execute("SELECT * FROM expenses WHERE id=?", (exp_id,)).fetchone()
+    conn.close()
+    return jsonify(dict(row)), 201
 
 @app.route("/api/expenses/<expense_id>", methods=["DELETE"])
 def delete_expense(expense_id):
     if "username" not in session:
         return jsonify({"error": "Not logged in"}), 401
-
-    user     = session["username"]
-    all_data = load_expenses()
-    udata    = all_data.get(user, {"expenses": [], "budgets": {}})
-
-    before = len(udata["expenses"])
-    udata["expenses"] = [e for e in udata["expenses"] if e["id"] != expense_id]
-    if len(udata["expenses"]) == before:
+    conn = get_db()
+    result = conn.execute(
+        "DELETE FROM expenses WHERE id=? AND username=?", (expense_id, session["username"])
+    )
+    conn.commit()
+    conn.close()
+    if result.rowcount == 0:
         return jsonify({"error": "Not found"}), 404
-
-    all_data[user] = udata
-    save_expenses(all_data)
     return jsonify({"deleted": expense_id})
+
+# ─── Budget API ──────────────────────────────────────────
 
 @app.route("/api/budget", methods=["GET", "POST"])
 def budget():
     if "username" not in session:
         return jsonify({"error": "Not logged in"}), 401
 
-    user     = session["username"]
-    all_data = load_expenses()
-    udata    = all_data.get(user, {"expenses": [], "budgets": {}})
-    today    = datetime.date.today()
+    user  = session["username"]
+    today = datetime.date.today()
+    conn  = get_db()
 
     if request.method == "GET":
         year  = request.args.get("year",  today.year)
         month = request.args.get("month", today.month)
-        key   = f"{year}_{month}"
-        return jsonify({"budget": udata["budgets"].get(key, 0)})
+        row   = conn.execute(
+            "SELECT amount FROM budgets WHERE username=? AND year=? AND month=?",
+            (user, int(year), int(month))
+        ).fetchone()
+        conn.close()
+        return jsonify({"budget": row["amount"] if row else 0})
 
     body  = request.get_json()
-    year  = body.get("year",   today.year)
-    month = body.get("month",  today.month)
+    year  = int(body.get("year",  today.year))
+    month = int(body.get("month", today.month))
     value = float(body.get("budget", 0))
-    key   = f"{year}_{month}"
-    udata["budgets"][key] = value
-    all_data[user] = udata
-    save_expenses(all_data)
-    return jsonify({"key": key, "budget": value})
+    conn.execute(
+        "INSERT INTO budgets (username,year,month,amount) VALUES (?,?,?,?) "
+        "ON CONFLICT(username,year,month) DO UPDATE SET amount=excluded.amount",
+        (user, year, month, value)
+    )
+    conn.commit()
+    conn.close()
+    return jsonify({"budget": value})
+
+# ─── Summary API ─────────────────────────────────────────
 
 @app.route("/api/summary")
 def summary():
     if "username" not in session:
         return jsonify({"error": "Not logged in"}), 401
 
-    user     = session["username"]
-    all_data = load_expenses()
-    udata    = all_data.get(user, {"expenses": [], "budgets": {}})
-    today    = datetime.date.today()
-
+    user  = session["username"]
+    today = datetime.date.today()
     year  = int(request.args.get("year",  today.year))
     month = int(request.args.get("month", today.month))
-    key   = f"{year}_{month}"
 
-    exps        = [e for e in udata["expenses"]
-                   if e["year"] == year and e["month"] == month]
-    total       = sum(e["amount"] for e in exps)
-    budget_val  = udata["budgets"].get(key, 0)
-    by_category = {}
+    conn = get_db()
+    exps = conn.execute(
+        "SELECT * FROM expenses WHERE username=? AND year=? AND month=?",
+        (user, year, month)
+    ).fetchall()
+    brow = conn.execute(
+        "SELECT amount FROM budgets WHERE username=? AND year=? AND month=?",
+        (user, year, month)
+    ).fetchone()
+    conn.close()
+
+    total      = sum(e["amount"] for e in exps)
+    budget_val = brow["amount"] if brow else 0
+    by_cat     = {}
     for e in exps:
-        cat = e["category"]
-        by_category[cat] = by_category.get(cat, 0) + e["amount"]
+        by_cat[e["category"]] = by_cat.get(e["category"], 0) + e["amount"]
 
     return jsonify({
         "total":       round(total, 2),
         "budget":      budget_val,
         "remaining":   round(budget_val - total, 2),
-        "by_category": by_category,
+        "by_category": by_cat,
         "count":       len(exps),
     })
 
@@ -231,100 +273,98 @@ def export_csv():
     if "username" not in session:
         return jsonify({"error": "Not logged in"}), 401
 
-    import io, csv
-    from flask import Response
-
-    user     = session["username"]
-    all_data = load_expenses()
-    udata    = all_data.get(user, {"expenses": [], "budgets": {}})
-
+    user  = session["username"]
     year  = request.args.get("year")
     month = request.args.get("month")
-    exps  = udata["expenses"]
+
+    conn = get_db()
     if year and month:
-        exps = [e for e in exps if e["year"]==int(year) and e["month"]==int(month)]
+        exps = conn.execute(
+            "SELECT * FROM expenses WHERE username=? AND year=? AND month=? ORDER BY date",
+            (user, int(year), int(month))
+        ).fetchall()
+    else:
+        exps = conn.execute(
+            "SELECT * FROM expenses WHERE username=? ORDER BY date", (user,)
+        ).fetchall()
+    conn.close()
 
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow(["Date", "Description", "Category", "Amount (INR)"])
-    for e in sorted(exps, key=lambda x: x["date"]):
+    for e in exps:
         writer.writerow([e["date"], e["description"], e["category"], e["amount"]])
 
     filename = f"spendsmart_{year or 'all'}_{month or 'all'}.csv"
     return Response(
-        "\ufeff" + output.getvalue(),   # BOM for Excel UTF-8 support
+        "\ufeff" + output.getvalue(),
         mimetype="text/csv",
         headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
 
-# ─── Spending Goals API ──────────────────────────────────
+# ─── Goals API ───────────────────────────────────────────
 
 @app.route("/api/goals", methods=["GET", "POST"])
 def goals():
     if "username" not in session:
         return jsonify({"error": "Not logged in"}), 401
 
-    user     = session["username"]
-    all_data = load_expenses()
-    udata    = all_data.get(user, {"expenses": [], "budgets": {}, "goals": []})
-    if "goals" not in udata:
-        udata["goals"] = []
+    user  = session["username"]
+    today = datetime.date.today()
+    conn  = get_db()
 
     if request.method == "GET":
         year  = request.args.get("year")
         month = request.args.get("month")
-        result = udata["goals"]
         if year and month:
-            result = [g for g in result
-                      if g["year"] == int(year) and g["month"] == int(month)]
-        return jsonify(result)
+            rows = conn.execute(
+                "SELECT * FROM goals WHERE username=? AND year=? AND month=?",
+                (user, int(year), int(month))
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM goals WHERE username=?", (user,)
+            ).fetchall()
+        conn.close()
+        return jsonify([dict(r) for r in rows])
 
-    body  = request.get_json()
-    label = body.get("label", "").strip()
+    body   = request.get_json()
+    label  = body.get("label", "").strip()
     amount = float(body.get("amount", 0))
-    today = datetime.date.today()
-
     if not label or amount <= 0:
         return jsonify({"error": "Label and amount required"}), 400
 
-    goal = {
-        "id":     str(int(datetime.datetime.now().timestamp() * 1000)),
-        "label":  label,
-        "amount": amount,
-        "year":   int(body.get("year",  today.year)),
-        "month":  int(body.get("month", today.month)),
-        "done":   False,
-    }
-    udata["goals"].append(goal)
-    all_data[user] = udata
-    save_expenses(all_data)
-    return jsonify(goal), 201
+    goal_id = str(int(datetime.datetime.now().timestamp() * 1000))
+    conn.execute(
+        "INSERT INTO goals (id,username,label,amount,year,month,done) VALUES (?,?,?,?,?,?,0)",
+        (goal_id, user, label, amount,
+         int(body.get("year", today.year)), int(body.get("month", today.month)))
+    )
+    conn.commit()
+    row = conn.execute("SELECT * FROM goals WHERE id=?", (goal_id,)).fetchone()
+    conn.close()
+    return jsonify(dict(row)), 201
 
 @app.route("/api/goals/<goal_id>", methods=["DELETE", "PATCH"])
 def goal_action(goal_id):
     if "username" not in session:
         return jsonify({"error": "Not logged in"}), 401
 
-    user     = session["username"]
-    all_data = load_expenses()
-    udata    = all_data.get(user, {"expenses": [], "budgets": {}, "goals": []})
-    if "goals" not in udata:
-        udata["goals"] = []
+    user = session["username"]
+    conn = get_db()
 
     if request.method == "DELETE":
-        udata["goals"] = [g for g in udata["goals"] if g["id"] != goal_id]
-        all_data[user] = udata
-        save_expenses(all_data)
+        conn.execute("DELETE FROM goals WHERE id=? AND username=?", (goal_id, user))
+        conn.commit()
+        conn.close()
         return jsonify({"deleted": goal_id})
 
-    if request.method == "PATCH":
-        for g in udata["goals"]:
-            if g["id"] == goal_id:
-                g["done"] = not g["done"]
-                break
-        all_data[user] = udata
-        save_expenses(all_data)
-        return jsonify({"updated": goal_id})
+    row = conn.execute("SELECT done FROM goals WHERE id=? AND username=?", (goal_id, user)).fetchone()
+    if row:
+        conn.execute("UPDATE goals SET done=? WHERE id=?", (0 if row["done"] else 1, goal_id))
+        conn.commit()
+    conn.close()
+    return jsonify({"updated": goal_id})
 
 if __name__ == "__main__":
     app.run(debug=True)
