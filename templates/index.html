@@ -4,33 +4,64 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>SpendSmart – Dashboard</title>
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg"/>
+<link rel="apple-touch-icon" href="/static/favicon.svg"/>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet"/>
 <style>
   :root {
-    --bg:#f4f1eb; --surface:#ffffff; --surface2:#f9f7f3;
-    --border:#e2ddd6; --text:#1a1714; --muted:#7a746d;
-    --accent:#2d6a4f; --danger:#c0392b; --warn:#d68910;
+    --bg:#060810; --surface:rgba(255,255,255,.04); --surface2:rgba(255,255,255,.07);
+    --border:rgba(255,255,255,.1); --text:#e8eaf0; --muted:#7a7f94;
+    --accent:#4ade80; --danger:#f87171; --warn:#fbbf24;
     --radius:12px; --radius-sm:8px;
     font-family:'DM Sans',sans-serif;
   }
-  body.dark {
-    --bg:#0f1117; --surface:#1a1d27; --surface2:#22263a;
-    --border:#2e3347; --text:#e8eaf0; --muted:#7a7f94;
-    --accent:#4ade80; --danger:#f87171; --warn:#fbbf24;
+  body.light {
+    --bg:#f4f1eb; --surface:#ffffff; --surface2:#f9f7f3;
+    --border:#e2ddd6; --text:#1a1714; --muted:#7a746d;
+    --accent:#2d6a4f; --danger:#c0392b; --warn:#d68910;
   }
+  body.light header { background:#1a1714; }
+  body.light .txn:hover { background:#f0ece6; }
+  body.light input, body.light select { background:#f9f7f3; color:#1a1714; border-color:#e2ddd6; }
+  /* 3D gradient background */
+  .bg-canvas{position:fixed;inset:0;z-index:0;background:
+    radial-gradient(ellipse 80% 60% at 50% -10%,rgba(74,222,128,.15) 0%,transparent 70%),
+    radial-gradient(ellipse 60% 50% at 85% 40%,rgba(99,102,241,.12) 0%,transparent 60%),
+    radial-gradient(ellipse 50% 60% at 10% 80%,rgba(16,185,129,.08) 0%,transparent 60%),
+    #060810;}
+  body.light .bg-canvas{background:#f4f1eb;}
+  .orb{position:fixed;border-radius:50%;filter:blur(90px);opacity:.18;animation:float 12s ease-in-out infinite;pointer-events:none;}
+  .orb1{width:600px;height:600px;background:radial-gradient(circle,#4ade80,transparent);top:-200px;left:-150px;animation-delay:0s;}
+  .orb2{width:500px;height:500px;background:radial-gradient(circle,#6366f1,transparent);top:40%;right:-200px;animation-delay:-5s;}
+  .orb3{width:400px;height:400px;background:radial-gradient(circle,#06b6d4,transparent);bottom:-100px;left:25%;animation-delay:-9s;}
+  body.light .orb{display:none;}
+  .bg-grid{position:fixed;inset:0;z-index:0;pointer-events:none;
+    background-image:linear-gradient(rgba(74,222,128,.04) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(74,222,128,.04) 1px,transparent 1px);
+    background-size:50px 50px;}
+  body.light .bg-grid{background-image:none;}
+  @keyframes float{0%,100%{transform:translateY(0) scale(1);}50%{transform:translateY(-25px) scale(1.04);}}
   body.dark header { background:#13151f; }
   body.dark .txn:hover { background:#2a2e42; }
   body.dark input, body.dark select { background:#22263a; color:#e8eaf0; border-color:#2e3347; }
   body.dark input:focus, body.dark select:focus { border-color:var(--accent); }
 
-  body.dark .insight-card.green { background:#0d2b1a; border-color:#1a4d2e; }
-  body.dark .insight-card.red   { background:#2b0d0d; border-color:#4d1a1a; }
-  body.dark .insight-card.amber { background:#2b1f0d; border-color:#4d3a1a; }
-  body.dark .insight-card.blue  { background:#0d1a2b; border-color:#1a2e4d; }
-  body.dark .insight-card.purple{ background:#1a0d2b; border-color:#2e1a4d; }
-  body.dark .insight-title      { color:#7a7f94; }
-  body.dark .insight-msg        { color:#e8eaf0; }
-  body.dark .insight-sub        { color:#7a7f94; }
+  .insight-card.green{background:rgba(74,222,128,.08);border-color:rgba(74,222,128,.2);}
+  .insight-card.red{background:rgba(248,113,113,.08);border-color:rgba(248,113,113,.2);}
+  .insight-card.amber{background:rgba(251,191,36,.08);border-color:rgba(251,191,36,.2);}
+  .insight-card.blue{background:rgba(99,102,241,.08);border-color:rgba(99,102,241,.2);}
+  .insight-card.purple{background:rgba(167,139,250,.08);border-color:rgba(167,139,250,.2);}
+  .insight-title{color:#7a7f94;}
+  .insight-msg{color:#e8eaf0;}
+  .insight-sub{color:#7a7f94;}
+  body.light .insight-card.green{background:#edfaf3;border-color:#b7e4cc;}
+  body.light .insight-card.red{background:#fef0ee;border-color:#f5c4bb;}
+  body.light .insight-card.amber{background:#fef8ed;border-color:#f5dfa0;}
+  body.light .insight-card.blue{background:#eef4fd;border-color:#bcd4f5;}
+  body.light .insight-card.purple{background:#f3f0fd;border-color:#ccc3f5;}
+  body.light .insight-title{color:var(--muted);}
+  body.light .insight-msg{color:var(--text);}
+  body.light .insight-sub{color:var(--muted);}
   .dark-toggle {
     background:rgba(255,255,255,.1); border:none; color:#fff;
     padding:6px 12px; border-radius:20px; cursor:pointer;
@@ -45,6 +76,7 @@
     position:relative; transition:background .3s; flex-shrink:0;
   }
   body.dark .toggle-track { background:#4ade80; }
+  body.light .toggle-track { background:rgba(255,255,255,.2); }
   .toggle-thumb {
     position:absolute; top:2px; left:2px;
     width:14px; height:14px; border-radius:50%;
@@ -52,55 +84,88 @@
   }
   body.dark .toggle-thumb { transform:translateX(14px); }
   *{box-sizing:border-box;margin:0;padding:0;}
-  body{background:var(--bg);color:var(--text);min-height:100vh;font-size:15px;}
+  body{background:var(--bg);color:var(--text);min-height:100vh;font-size:15px;position:relative;}
+  header{background:rgba(6,8,16,.85)!important;backdrop-filter:blur(20px);border-bottom:1px solid rgba(74,222,128,.1);}
+  body.light header{background:#1a1714!important;backdrop-filter:none;border-bottom:none;}
+  input,select{background:rgba(255,255,255,.06)!important;color:#e8eaf0!important;border-color:rgba(255,255,255,.12)!important;}
+  input:focus,select:focus{border-color:var(--accent)!important;}
+  input::placeholder{color:#4a4f64!important;}
+  select option{background:#1a1d27!important;color:#e8eaf0!important;}
+  body.light input,body.light select{background:#f9f7f3!important;color:#1a1714!important;border-color:#e2ddd6!important;}
+  body.light input::placeholder{color:#aaa!important;}
+  body.light select option{background:#ffffff!important;color:#1a1714!important;}
+  .txn:hover{background:rgba(255,255,255,.08)!important;}
+  body.light .txn:hover{background:#f0ece6!important;}
 
-  /* ── Header ── */
-  header{
-    background:var(--text);color:#fff;
-    padding:.9rem 2rem;
+  header{background:rgba(6,8,16,.85)!important;backdrop-filter:blur(20px);border-bottom:1px solid rgba(74,222,128,.1);
+    padding:1.4rem 3.5rem;
     display:flex;align-items:center;justify-content:space-between;
     position:sticky;top:0;z-index:100;gap:1rem;flex-wrap:wrap;
   }
-  .header-left{display:flex;align-items:center;gap:14px;}
-  header h1{font-family:'Space Grotesk',sans-serif;font-size:1.2rem;}
+  .header-left{display:flex;align-items:center;gap:16px;}
+  header h1{font-family:'Space Grotesk',sans-serif;font-size:1.8rem;}
   header h1 span{color:#7ecca0;}
   .user-badge{
-    background:rgba(255,255,255,.12);border-radius:999px;
-    padding:5px 12px;font-size:13px;display:flex;align-items:center;gap:7px;
+    background:rgba(255,255,255,.08);border-radius:999px;
+    padding:7px 16px;font-size:15px;display:flex;align-items:center;gap:8px;
   }
-  .user-dot{width:8px;height:8px;border-radius:50%;background:#7ecca0;}
-  .month-nav{display:flex;align-items:center;gap:8px;font-size:14px;}
+  .user-dot{width:9px;height:9px;border-radius:50%;background:#7ecca0;}
+  .month-nav{display:flex;align-items:center;gap:10px;font-size:16px;}
   .month-nav button{
     background:rgba(255,255,255,.1);border:none;color:#fff;
-    width:28px;height:28px;border-radius:6px;cursor:pointer;font-size:16px;
+    width:34px;height:34px;border-radius:8px;cursor:pointer;font-size:18px;
   }
   .month-nav button:hover{background:rgba(255,255,255,.22);}
-  .month-label{font-weight:500;min-width:130px;text-align:center;}
+  .month-label{font-weight:500;min-width:160px;text-align:center;font-size:16px;}
   .btn-logout{
     background:rgba(255,255,255,.1);border:none;color:#fff;
-    padding:6px 13px;border-radius:6px;cursor:pointer;font-size:13px;
+    padding:9px 18px;border-radius:8px;cursor:pointer;font-size:15px;
     font-family:inherit;
   }
   .btn-logout:hover{background:rgba(255,255,255,.2);}
   .btn-export{
     background:rgba(74,222,128,.15);border:1px solid rgba(74,222,128,.35);
-    color:#7ecca0;padding:6px 13px;border-radius:6px;cursor:pointer;
-    font-size:13px;font-family:inherit;font-weight:500;
+    color:#7ecca0;padding:9px 18px;border-radius:8px;cursor:pointer;
+    font-size:15px;font-family:inherit;font-weight:500;
     transition:background .2s;white-space:nowrap;
   }
   .btn-export:hover{background:rgba(74,222,128,.28);}
 
   /* ── Layout ── */
-  .container{max-width:1100px;margin:0 auto;padding:2rem 1.5rem;}
-  .grid{display:grid;grid-template-columns:1fr 340px;gap:1.5rem;}
+  .container{max-width:1600px;margin:0 auto;padding:2.5rem 3.5rem;position:relative;z-index:1;}
+  .grid{display:grid;grid-template-columns:1fr 420px;gap:2rem;}
   @media(max-width:760px){.grid{grid-template-columns:1fr;}}
 
   /* ── Cards ── */
   .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.25rem 1.5rem;}
   .card-title{font-family:'Space Grotesk',sans-serif;font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:1rem;}
 
+  /* ── Feature Ticker ── */
+  .ticker-wrap{
+    width:100%;overflow:hidden;
+    background:rgba(74,222,128,.06);
+    border-bottom:1px solid rgba(74,222,128,.12);
+    position:sticky;top:72px;z-index:99;
+    padding:7px 0;
+  }
+  .ticker-track{
+    display:inline-flex;align-items:center;gap:0;
+    white-space:nowrap;
+    animation:ticker 30s linear infinite;
+  }
+  .ticker-track:hover{animation-play-state:paused;}
+  .ticker-item{
+    font-size:13px;font-weight:500;color:rgba(74,222,128,.85);
+    padding:0 18px;letter-spacing:.02em;
+  }
+  .ticker-sep{color:rgba(74,222,128,.3);font-size:10px;}
+  @keyframes ticker{
+    0%{transform:translateX(0);}
+    100%{transform:translateX(-50%);}
+  }
+
   /* ── Top Layout ── */
-  .top-layout{display:grid;grid-template-columns:1fr 260px;gap:1.5rem;margin-bottom:1.5rem;align-items:stretch;}
+  .top-layout{display:grid;grid-template-columns:1fr 300px;gap:1.5rem;margin-bottom:1.5rem;align-items:stretch;}
   .top-left{display:flex;flex-direction:column;gap:1rem;}
   .top-left .stats-bar{flex:1;}
   .top-left .stat{height:100%;}
@@ -111,8 +176,8 @@
   /* ── Stats ── */
   .stats-bar{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;flex:1;}
   .stat{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:.75rem 1rem;display:flex;flex-direction:column;justify-content:center;}
-  .stat-label{font-size:11px;color:var(--muted);margin-bottom:2px;}
-  .stat-value{font-size:1.3rem;font-family:'Space Grotesk',sans-serif;font-weight:700;}
+  .stat-label{font-size:13px;color:var(--muted);margin-bottom:4px;}
+  .stat-value{font-size:2rem;font-family:'Space Grotesk',sans-serif;font-weight:700;}
   .c-red{color:var(--danger);} .c-blue{color:#1a5276;} .c-green{color:var(--accent);} .c-warn{color:var(--warn);}
 
   /* ── Progress ── */
@@ -132,13 +197,65 @@
   }
   input:focus,select:focus{border-color:var(--accent);}
   .btn{
-    background:var(--text);color:#fff;border:none;
+    background:rgba(74,222,128,.15);color:#4ade80;border:1px solid rgba(74,222,128,.25);
     border-radius:var(--radius-sm);padding:10px 18px;
-    font-size:14px;font-family:'Space Grotesk',sans-serif;font-weight:500;
+    font-size:14px;font-family:'Space Grotesk',sans-serif;font-weight:600;
     cursor:pointer;width:100%;margin-top:6px;
+    position:relative;overflow:hidden;
+    transition:all .2s;
   }
-  .btn:hover{opacity:.85;}
+  .btn:hover{background:rgba(74,222,128,.25);border-color:rgba(74,222,128,.5);}
+  .btn:active{transform:scale(0.98);}
+  .btn:disabled{opacity:.5;cursor:not-allowed;transform:none;}
   .btn-sm{width:auto;margin-top:0;padding:8px 14px;}
+  body.light .btn{background:#1a1714;color:#fff;border-color:#1a1714;}
+  body.light .btn:hover{opacity:.85;}
+
+  /* ── Button spinner ── */
+  .btn .btn-text{transition:opacity .2s;}
+  .btn .btn-spinner{
+    position:absolute;top:50%;left:50%;
+    transform:translate(-50%,-50%);
+    width:18px;height:18px;
+    border:2px solid rgba(255,255,255,.3);
+    border-top-color:#fff;
+    border-radius:50%;
+    opacity:0;
+    animation:none;
+  }
+  .btn.loading .btn-text{opacity:0;}
+  .btn.loading .btn-spinner{opacity:1;animation:spin .7s linear infinite;}
+  @keyframes spin{to{transform:translate(-50%,-50%) rotate(360deg);}}
+
+  /* ── Full page loading overlay ── */
+  #pageLoader{
+    position:fixed;inset:0;
+    background:rgba(0,0,0,.45);
+    backdrop-filter:blur(3px);
+    z-index:9999;
+    display:none;
+    flex-direction:column;
+    align-items:center;justify-content:center;
+    gap:16px;
+  }
+  #pageLoader.show{display:flex;}
+  .loader-box{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:2rem 2.5rem;
+    text-align:center;
+    min-width:200px;
+  }
+  .loader-ring{
+    width:44px;height:44px;margin:0 auto 14px;
+    border:3px solid var(--border);
+    border-top-color:var(--accent);
+    border-radius:50%;
+    animation:spin .8s linear infinite;
+  }
+  .loader-msg{font-size:14px;font-weight:500;color:var(--text);}
+  .loader-sub{font-size:12px;color:var(--muted);margin-top:4px;}
 
   /* ── Time Filters ── */
   .time-filters{display:flex;gap:6px;margin-bottom:10px;}
@@ -154,7 +271,8 @@
   /* ── Tabs ── */
   .tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:1.25rem;}
   .tab{background:none;border:1px solid var(--border);border-radius:var(--radius-sm);padding:5px 12px;font-size:13px;cursor:pointer;color:var(--muted);font-family:inherit;}
-  .tab.active{background:var(--text);color:#fff;border-color:var(--text);}
+  .tab.active{background:rgba(74,222,128,.15);color:#4ade80;border-color:rgba(74,222,128,.35);}
+  body.light .tab.active{background:#1a1714;color:#fff;border-color:#1a1714;}
 
   /* ── Transactions ── */
   .txn-list{display:flex;flex-direction:column;gap:8px;}
@@ -248,6 +366,20 @@
 </style>
 </head>
 <body>
+<div class="bg-canvas"></div>
+<div class="orb orb1"></div>
+<div class="orb orb2"></div>
+<div class="orb orb3"></div>
+<div class="bg-grid"></div>
+<!-- Page Loading Overlay -->
+<div id="pageLoader">
+  <div class="loader-box">
+    <div class="loader-ring"></div>
+    <div class="loader-msg" id="loaderMsg">Processing…</div>
+    <div class="loader-sub" id="loaderSub">Talking to server</div>
+  </div>
+</div>
+
 <div id="loader"></div>
 
 <header>
@@ -274,6 +406,44 @@
     <button class="btn-logout" onclick="doLogout()">Logout ↗</button>
   </div>
 </header>
+
+<!-- Scrolling Feature Ticker -->
+<div class="ticker-wrap">
+  <div class="ticker-track">
+    <span class="ticker-item">📊 Smart Insights</span>
+    <span class="ticker-sep">✦</span>
+    <span class="ticker-item">🎯 Budget Alerts</span>
+    <span class="ticker-sep">✦</span>
+    <span class="ticker-item">🏆 Spending Goals</span>
+    <span class="ticker-sep">✦</span>
+    <span class="ticker-item">🌙 Dark Mode</span>
+    <span class="ticker-sep">✦</span>
+    <span class="ticker-item">📥 CSV Export</span>
+    <span class="ticker-sep">✦</span>
+    <span class="ticker-item">🔐 Private Accounts</span>
+    <span class="ticker-sep">✦</span>
+    <span class="ticker-item">📅 Time Filters</span>
+    <span class="ticker-sep">✦</span>
+    <span class="ticker-item">🥧 Pie Chart Analytics</span>
+    <span class="ticker-sep">✦</span>
+    <span class="ticker-item">📊 Smart Insights</span>
+    <span class="ticker-sep">✦</span>
+    <span class="ticker-item">🎯 Budget Alerts</span>
+    <span class="ticker-sep">✦</span>
+    <span class="ticker-item">🏆 Spending Goals</span>
+    <span class="ticker-sep">✦</span>
+    <span class="ticker-item">🌙 Dark Mode</span>
+    <span class="ticker-sep">✦</span>
+    <span class="ticker-item">📥 CSV Export</span>
+    <span class="ticker-sep">✦</span>
+    <span class="ticker-item">🔐 Private Accounts</span>
+    <span class="ticker-sep">✦</span>
+    <span class="ticker-item">📅 Time Filters</span>
+    <span class="ticker-sep">✦</span>
+    <span class="ticker-item">🥧 Pie Chart Analytics</span>
+    <span class="ticker-sep">✦</span>
+  </div>
+</div>
 
 <div class="container">
 
@@ -367,7 +537,10 @@
             </div>
             <div><label>Date</label><input type="date" id="fDate"/></div>
           </div>
-          <button class="btn" onclick="addExpense()">Add Expense</button>
+          <button class="btn" id="btnAddExpense" onclick="addExpense()">
+          <span class="btn-text">Add Expense</span>
+          <div class="btn-spinner"></div>
+        </button>
         </div>
 
         <!-- Panel: Set Budget -->
@@ -375,7 +548,10 @@
           <div class="panel-title">🎯 Set Budget</div>
           <div style="display:flex;gap:8px;align-items:center;">
             <input type="number" id="budgetInput" placeholder="Monthly budget ₹" min="0"/>
-            <button class="btn btn-sm" onclick="saveBudget()">Save</button>
+            <button class="btn btn-sm" id="btnSaveBudget" onclick="saveBudget()">
+            <span class="btn-text">Save</span>
+            <div class="btn-spinner"></div>
+          </button>
           </div>
           <p style="font-size:12px;color:var(--muted);margin-top:8px">Set your spending limit for this month.</p>
         </div>
@@ -387,12 +563,22 @@
             <input type="text" id="gLabel" placeholder='e.g. Save ₹1000' style="flex:1;font-size:13px;"/>
             <input type="number" id="gAmt" placeholder="₹" min="0" style="width:70px;font-size:13px;"/>
           </div>
-          <button class="btn" onclick="addGoal()" style="margin-top:0;margin-bottom:12px;">+ Add Goal</button>
+          <button class="btn" id="btnAddGoal" onclick="addGoal()" style="margin-top:0;margin-bottom:12px;">
+            <span class="btn-text">+ Add Goal</span>
+            <div class="btn-spinner"></div>
+          </button>
           <div id="goalList"><div style="color:var(--muted);font-size:13px;text-align:center;padding:.5rem 0">No goals yet</div></div>
         </div>
       </div>
 
     </div>
+  </div>
+</div>
+<div id="pageLoader">
+  <div class="loader-box">
+    <div class="loader-ring"></div>
+    <div class="loader-msg" id="loaderMsg">Loading…</div>
+    <div class="loader-sub" id="loaderSub"></div>
   </div>
 </div>
 <div id="toast"></div>
@@ -412,7 +598,23 @@ document.getElementById('fDate').value=now.toISOString().split('T')[0];
 
 function loader(on){document.getElementById('loader').classList.toggle('show',on);}
 
-async function api(path,method='GET',body=null){
+// ── Loading Helpers ────────────────────────────────────
+function showLoader(msg='Processing…', sub='Talking to server'){
+  document.getElementById('loaderMsg').textContent = msg;
+  document.getElementById('loaderSub').textContent = sub;
+  document.getElementById('pageLoader').classList.add('show');
+}
+function hideLoader(){
+  document.getElementById('pageLoader').classList.remove('show');
+}
+function btnLoad(id, on){
+  const btn = document.getElementById(id);
+  if(!btn) return;
+  btn.classList.toggle('loading', on);
+  btn.disabled = on;
+}
+
+async function api(path, method='GET', body=null){
   loader(true);
   try{
     const opts={method,headers:{'Content-Type':'application/json'}};
@@ -469,15 +671,15 @@ function renderStats(s){
     alert.style.display = 'none';
   } else if(rawPct >= 100){
     alert.style.display = 'flex';
-    alert.style.background = '#fdecea';
-    alert.style.border = '1px solid #f5c6c2';
-    alert.style.color = '#c0392b';
+    alert.style.background = 'rgba(248,113,113,.1)';
+    alert.style.border = '1px solid rgba(248,113,113,.25)';
+    alert.style.color = '#f87171';
     alert.innerHTML = `<span style="font-size:16px">❌</span><div><strong>Budget Exceeded!</strong> You have spent ₹${(s.total - s.budget).toFixed(0)} more than your budget.</div>`;
   } else if(rawPct >= 80){
     alert.style.display = 'flex';
-    alert.style.background = '#fef8ed';
-    alert.style.border = '1px solid #f5dfa0';
-    alert.style.color = '#b7770d';
+    alert.style.background = 'rgba(251,191,36,.1)';
+    alert.style.border = '1px solid rgba(251,191,36,.25)';
+    alert.style.color = '#fbbf24';
     alert.innerHTML = `<span style="font-size:16px">⚠️</span><div><strong>Budget Almost Reached!</strong> You've used ${rawPct.toFixed(0)}% — only ₹${(s.budget - s.total).toFixed(0)} left.</div>`;
   }
 }
@@ -552,13 +754,21 @@ function renderInsights(s){
     return;
   }
 
+  const CARD_STYLES = {
+    amber:  'background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.25);',
+    red:    'background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.25);',
+    green:  'background:rgba(74,222,128,.1);border:1px solid rgba(74,222,128,.25);',
+    blue:   'background:rgba(99,102,241,.1);border:1px solid rgba(99,102,241,.25);',
+    purple: 'background:rgba(167,139,250,.1);border:1px solid rgba(167,139,250,.25);',
+  };
+
   grid.innerHTML = cards.map(c=>`
-    <div class="insight-card ${c.color}">
-      <div class="insight-icon">${c.icon}</div>
-      <div class="insight-text">
-        <div class="insight-title">${c.title}</div>
-        <div class="insight-msg">${c.msg}</div>
-        <div class="insight-sub">${c.sub}</div>
+    <div class="insight-card" style="${CARD_STYLES[c.color]||''}border-radius:12px;padding:1rem 1.25rem;display:flex;align-items:flex-start;gap:12px;">
+      <div style="font-size:1.6rem;flex-shrink:0;margin-top:2px">${c.icon}</div>
+      <div>
+        <div style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#7a7f94;margin-bottom:4px">${c.title}</div>
+        <div style="font-size:14px;font-weight:500;color:#e8eaf0;line-height:1.4">${c.msg}</div>
+        <div style="font-size:12px;color:#7a7f94;margin-top:3px">${c.sub}</div>
       </div>
     </div>`).join('');
 }
@@ -670,15 +880,21 @@ async function addExpense(){
   const cat=document.getElementById('fCat').value;
   const date=document.getElementById('fDate').value;
   if(!desc||isNaN(amt)||amt<=0||!date){toast('⚠️ Fill all fields correctly','var(--danger)');return;}
+  btnLoad('btnAddExpense', true);
+  showLoader('Adding Expense…', 'Saving to database');
   await api('/api/expenses','POST',{description:desc,amount:amt,category:cat,date,year:cy,month:cm});
   document.getElementById('fDesc').value='';
   document.getElementById('fAmt').value='';
+  hideLoader();
+  btnLoad('btnAddExpense', false);
   toast('✅ Expense added!');
   render();
 }
 
 async function delExpense(id){
+  showLoader('Deleting…','Removing from database');
   await api(`/api/expenses/${id}`,'DELETE');
+  hideLoader();
   toast('🗑️ Deleted','var(--danger)');
   render();
 }
@@ -686,8 +902,12 @@ async function delExpense(id){
 async function saveBudget(){
   const val=parseFloat(document.getElementById('budgetInput').value);
   if(isNaN(val)||val<0){toast('⚠️ Enter a valid budget','var(--danger)');return;}
+  btnLoad('btnSaveBudget', true);
+  showLoader('Saving Budget…','Updating your monthly limit');
   await api('/api/budget','POST',{budget:val,year:cy,month:cm});
   document.getElementById('budgetInput').value='';
+  hideLoader();
+  btnLoad('btnSaveBudget', false);
   toast('🎯 Budget saved!');
   render();
 }
@@ -792,38 +1012,70 @@ async function addGoal(){
   const label = document.getElementById('gLabel').value.trim();
   const amt   = parseFloat(document.getElementById('gAmt').value);
   if(!label || isNaN(amt) || amt <= 0){ toast('⚠️ Enter goal name and amount','var(--danger)'); return; }
+  btnLoad('btnAddGoal', true);
+  showLoader('Adding Goal…', 'Saving your spending goal');
   await api('/api/goals','POST',{label, amount:amt, year:cy, month:cm});
   document.getElementById('gLabel').value='';
   document.getElementById('gAmt').value='';
+  hideLoader();
+  btnLoad('btnAddGoal', false);
   toast('🏆 Goal added!');
   render();
 }
 
 async function toggleGoal(id){
+  showLoader('Updating…', 'Marking goal status');
   await api(`/api/goals/${id}`,'PATCH');
+  hideLoader();
   render();
 }
 
 async function delGoal(id){
+  showLoader('Removing…', 'Deleting goal');
   await api(`/api/goals/${id}`,'DELETE');
+  hideLoader();
   toast('🗑️ Goal removed','var(--danger)');
   render();
 }
 
-// ── Dark Mode ──────────────────────────────────────────
-function toggleDark(){
-  const isDark = document.body.classList.toggle('dark');
-  document.getElementById('darkIcon').textContent = isDark ? '☀️' : '🌙';
-  localStorage.setItem('spendsmart_theme', isDark ? 'dark' : 'light');
-  // Re-render pie chart with correct colors
-  if(window._lastSummary) renderBreakdown(window._lastSummary.by_category);
+async function doLogout(){
+  showLoader('Logging out…', 'Ending your session');
+  await api('/api/logout','POST');
+  window.location.href='/login';
 }
 
-// Apply saved theme on load
+// ── Button Loading Animation ────────────────────────────
+function btnLoad(id, loading){
+  const btn = document.getElementById(id);
+  if(!btn) return;
+  btn.disabled = loading;
+  btn.classList.toggle('loading', loading);
+}
+
+// ── Page Loader Overlay ─────────────────────────────────
+function showLoader(msg='Loading…', sub=''){
+  const el = document.getElementById('pageLoader');
+  document.getElementById('loaderMsg').textContent = msg;
+  document.getElementById('loaderSub').textContent = sub;
+  el.classList.add('show');
+}
+function hideLoader(){
+  document.getElementById('pageLoader').classList.remove('show');
+}
+
+// ── Dark Mode ──────────────────────────────────────────
+function toggleDark(){
+  const isLight = document.body.classList.toggle('light');
+  document.getElementById('darkIcon').textContent = isLight ? '🌙' : '☀️';
+  localStorage.setItem('spendsmart_theme', isLight ? 'light' : 'dark');
+  if(window._lastSummary) renderBreakdown(window._lastSummary.by_category);
+}
 (function(){
   const saved = localStorage.getItem('spendsmart_theme');
-  if(saved === 'dark'){
-    document.body.classList.add('dark');
+  if(saved === 'light'){
+    document.body.classList.add('light');
+    document.getElementById('darkIcon').textContent = '🌙';
+  } else {
     document.getElementById('darkIcon').textContent = '☀️';
   }
 })();
