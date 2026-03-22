@@ -1,10 +1,17 @@
 from flask import Flask, render_template, request, jsonify, session, redirect, Response
-import datetime, hashlib, sqlite3, os, io, csv
+import datetime, hashlib, sqlite3, os, io, csv, random, smtplib
+from email.mime.text import MIMEText
 
 app = Flask(__name__)
 app.secret_key = "spendsmart_secret_2024"
 
-DB_FILE = "spendsmart.db"
+DB_FILE  = "spendsmart.db"
+otp_store = {}   # { email: { otp, expires } }
+
+# ── Email config (Gmail) ──────────────────────────────────
+# Set these as environment variables on Render
+SMTP_EMAIL    = os.environ.get("SMTP_EMAIL", "")
+SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
 
 # ─── Database Setup ──────────────────────────────────────
 
@@ -20,6 +27,7 @@ def init_db():
         CREATE TABLE IF NOT EXISTS users (
             username TEXT PRIMARY KEY,
             name     TEXT NOT NULL,
+            email    TEXT NOT NULL DEFAULT '',
             password TEXT NOT NULL,
             created  TEXT NOT NULL
         );
@@ -57,15 +65,147 @@ def init_db():
 
 init_db()
 
+# ── Migrate old DB — add email column if missing ─────────
+def migrate_db():
+    conn = get_db()
+    try:
+        conn.execute("ALTER TABLE users ADD COLUMN email TEXT NOT NULL DEFAULT ''")
+        conn.commit()
+        print(">>> Migration: added email column")
+    except Exception:
+        pass  # already exists
+    conn.close()
+
+migrate_db()
+
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
+# ─── OTP Routes ──────────────────────────────────────────
+
+def send_otp_email(to_email, otp):
+    if not SMTP_EMAIL or not SMTP_PASSWORD:
+        return False   # email not configured — skip in dev
+    try:
+        msg = MIMEText(f"""
+Hi there!
+
+Your SpendSmart verification code is:
+
+  {otp}
+
+This code expires in 10 minutes. Do not share it with anyone.
+
+– SpendSmart Team 🎓
+        """)
+        msg['Subject'] = f'SpendSmart OTP: {otp}'
+        msg['From']    = SMTP_EMAIL
+        msg['To']      = to_email
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as s:
+            s.login(SMTP_EMAIL, SMTP_PASSWORD)
+            s.send_message(msg)
+        return True
+    except Exception as e:
+        print(f"Email error: {e}")
+        return False
+
+@app.route("/api/send-otp", methods=["POST"])
+def send_otp():
+    body  = request.get_json()
+    email = body.get("email", "").strip().lower()
+    if not email or "@" not in email:
+        return jsonify({"error": "Enter a valid email address"}), 400
+
+    # Check email not already used
+    conn = get_db()
+    existing = conn.execute("SELECT username FROM users WHERE email=?", (email,)).fetchone()
+    conn.close()
+    if existing:
+        return jsonify({"error": "Email already registered"}), 409
+
+    otp = str(random.randint(100000, 999999))
+    expires = datetime.datetime.now() + datetime.timedelta(minutes=10)
+    otp_store[email] = {"otp": otp, "expires": expires}
+
+    # If email credentials configured → send real email
+    if SMTP_EMAIL and SMTP_PASSWORD:
+        sent = send_otp_email(email, otp)
+        if not sent:
+            return jsonify({"error": "Failed to send email. Try again."}), 500
+        return jsonify({"success": True})
+
+    # Dev mode → return OTP directly (no email needed)
+    return jsonify({"success": True, "dev_otp": otp})
+
+@app.route("/api/verify-otp", methods=["POST"])
+def verify_otp():
+    body  = request.get_json()
+    email = body.get("email", "").strip().lower()
+    otp   = body.get("otp", "").strip()
+
+    record = otp_store.get(email)
+    if not record:
+        return jsonify({"error": "No OTP sent to this email"}), 400
+    if datetime.datetime.now() > record["expires"]:
+        del otp_store[email]
+        return jsonify({"error": "OTP expired. Please request a new one"}), 400
+    if record["otp"] != otp:
+        return jsonify({"error": "Incorrect OTP. Try again"}), 400
+
+    return jsonify({"success": True, "verified": True})
+
+@app.route("/api/send-reset-otp", methods=["POST"])
+def send_reset_otp():
+    body  = request.get_json()
+    email = body.get("email", "").strip().lower()
+    if not email or "@" not in email:
+        return jsonify({"error": "Enter a valid email address"}), 400
+
+    conn = get_db()
+    user = conn.execute("SELECT username FROM users WHERE email=?", (email,)).fetchone()
+    conn.close()
+    if not user:
+        return jsonify({"error": "No account found with this email"}), 404
+
+    otp     = str(random.randint(100000, 999999))
+    expires = datetime.datetime.now() + datetime.timedelta(minutes=10)
+    otp_store[email] = {"otp": otp, "expires": expires}
+
+    if SMTP_EMAIL and SMTP_PASSWORD:
+        send_otp_email(email, otp)
+        return jsonify({"success": True})
+    return jsonify({"success": True, "dev_otp": otp})
+
+@app.route("/api/reset-password", methods=["POST"])
+def reset_password():
+    body     = request.get_json()
+    email    = body.get("email", "").strip().lower()
+    password = body.get("password", "")
+    if not email or not password or len(password) < 4:
+        return jsonify({"error": "Invalid request"}), 400
+
+    conn = get_db()
+    result = conn.execute(
+        "UPDATE users SET password=? WHERE email=?",
+        (hash_password(password), email)
+    )
+    conn.commit()
+    conn.close()
+    if result.rowcount == 0:
+        return jsonify({"error": "Email not found"}), 404
+    otp_store.pop(email, None)
+    return jsonify({"success": True})
+
 # ─── Page Routes ─────────────────────────────────────────
+
+@app.route("/home")
+def home():
+    return render_template("home.html")
 
 @app.route("/")
 def index():
     if "username" not in session:
-        return redirect("/login")
+        return redirect("/home")
     return render_template("index.html")
 
 @app.route("/login")
@@ -82,9 +222,12 @@ def register():
     username = body.get("username", "").strip().lower()
     password = body.get("password", "")
     name     = body.get("name", "").strip()
+    email    = body.get("email", "").strip().lower()
 
-    if not username or not password or not name:
+    if not username or not password or not name or not email:
         return jsonify({"error": "All fields are required"}), 400
+    if "@" not in email:
+        return jsonify({"error": "Enter a valid email address"}), 400
     if len(username) < 3:
         return jsonify({"error": "Username must be at least 3 characters"}), 400
     if len(password) < 4:
@@ -93,14 +236,17 @@ def register():
     conn = get_db()
     try:
         conn.execute(
-            "INSERT INTO users (username, name, password, created) VALUES (?,?,?,?)",
-            (username, name, hash_password(password), datetime.date.today().isoformat())
+            "INSERT INTO users (username, name, email, password, created) VALUES (?,?,?,?,?)",
+            (username, name, email, hash_password(password), datetime.date.today().isoformat())
         )
         conn.commit()
     except sqlite3.IntegrityError:
         return jsonify({"error": "Username already taken"}), 409
     finally:
         conn.close()
+
+    # Clear OTP after successful registration
+    otp_store.pop(email, None)
 
     session["username"] = username
     session["name"]     = name
@@ -114,11 +260,12 @@ def login():
     password = body.get("password", "")
 
     conn = get_db()
-    user = conn.execute("SELECT * FROM users WHERE username=?", (username,)).fetchone()
+    # Allow login with username OR email
+    user = conn.execute("SELECT * FROM users WHERE username=? OR email=?", (username, username)).fetchone()
     conn.close()
 
     if not user or user["password"] != hash_password(password):
-        return jsonify({"error": "Invalid username or password"}), 401
+        return jsonify({"error": "Invalid username/email or password"}), 401
 
     session["username"] = username
     session["name"]     = user["name"]
